@@ -18,6 +18,17 @@ export class UsersService {
     });
   }
 
+  async findOne(id: number) {
+    return this.prisma.user.findUnique({
+      where: {
+        id,
+      },
+      omit: {
+        password: true,
+      },
+    });
+  }
+
   async create(createUserDto: CreateUserDto) {
     const existingUser = await this.prisma.user.findUnique({
       where: {
