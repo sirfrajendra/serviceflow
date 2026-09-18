@@ -3,20 +3,42 @@ import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreateUserDto } from './dto/create-user.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
+import { UserResponseDto } from './dto/user-response.dto.js';
+import { GetUsersDto } from './dto/get-user.dto.js';
 
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll() {
-    return this.prisma.user.findMany({
-      orderBy: {
-        createdAt: 'desc',
+  async findAll(query: GetUsersDto) {
+    const { page, limit } = query;
+
+    const skip = (page - 1) * limit;
+
+    const [users, total] = await Promise.all([
+      this.prisma.user.findMany({
+        skip,
+        take: limit,
+        orderBy: {
+          createdAt: 'desc',
+        },
+        omit: {
+          password: true,
+        },
+      }),
+
+      this.prisma.user.count(),
+    ]);
+
+    return {
+      data: users,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
       },
-      omit: {
-        password: true,
-      },
-    });
+    };
   }
 
   async findOne(id: number) {
@@ -37,9 +59,10 @@ export class UsersService {
   } 
 
   async create(createUserDto: CreateUserDto) {
+    const email = createUserDto.email.trim().toLowerCase();
     const existingUser = await this.prisma.user.findUnique({
       where: {
-        email: createUserDto.email,
+        email,
       },
     });
 
@@ -54,11 +77,11 @@ export class UsersService {
 
     return this.prisma.user.create({
       data: {
-        email: createUserDto.email,
+        email,
         password: hashedPassword,
         firstName: createUserDto.firstName,
         lastName: createUserDto.lastName,
-        role: createUserDto.role as any,
+        role: createUserDto.role,
       },
       omit: {
         password: true,
@@ -75,10 +98,14 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
-    if (updateUserDto.email) {
+    let normalizedEmail: string | undefined;
+
+    if (updateUserDto.email !== undefined) {
+      normalizedEmail = updateUserDto.email.trim().toLowerCase();
+
       const emailUser = await this.prisma.user.findUnique({
         where: {
-          email: updateUserDto.email,
+          email: normalizedEmail,
         },
       });
 
@@ -87,13 +114,27 @@ export class UsersService {
       }
     }
 
-    const data: any = {
-      ...updateUserDto,
-    };
+    const data = {
+      ...(normalizedEmail !== undefined && {
+        email: normalizedEmail,
+      }),
 
-    if (updateUserDto.password) {
-      data.password = await bcrypt.hash(updateUserDto.password, 12);
-    }
+      ...(updateUserDto.firstName !== undefined && {
+        firstName: updateUserDto.firstName,
+      }),
+
+      ...(updateUserDto.lastName !== undefined && {
+        lastName: updateUserDto.lastName,
+      }),
+
+      ...(updateUserDto.role !== undefined && {
+        role: updateUserDto.role,
+      }),
+
+      ...(updateUserDto.password !== undefined && {
+        password: await bcrypt.hash(updateUserDto.password, 12),
+      }),
+    };
 
     return this.prisma.user.update({
       where: { id },
@@ -119,6 +160,19 @@ export class UsersService {
 
     return {
       message: 'User deleted successfully',
+    };
+  }
+
+  private toUserResponse(user: any): UserResponseDto {
+    return {
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+      isActive: user.isActive,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
     };
   }
 }
