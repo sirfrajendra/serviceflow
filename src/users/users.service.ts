@@ -5,6 +5,7 @@ import { CreateUserDto } from './dto/create-user.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
 import { UserResponseDto } from './dto/user-response.dto.js';
 import { GetUsersDto } from './dto/get-user.dto.js';
+import { UpdateUserStatusDto } from './dto/update-user-status.dto.js';
 
 @Injectable()
 export class UsersService {
@@ -175,6 +176,33 @@ export class UsersService {
     return this.prisma.user.update({
       where: { id },
       data,
+      omit: {
+        password: true,
+      },
+    });
+  }
+
+  async updateStatus(
+    id: number,
+    updateUserStatusDto: UpdateUserStatusDto,
+  ) {
+    const existingUser = await this.prisma.user.findUnique({
+      where: {
+        id,
+      },
+    });
+
+    if (!existingUser) {
+      throw new NotFoundException('User not found');
+    }
+
+    return this.prisma.user.update({
+      where: {
+        id,
+      },
+      data: {
+        isActive: updateUserStatusDto.isActive,
+      },
       omit: {
         password: true,
       },
