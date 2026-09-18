@@ -19,15 +19,6 @@ export class UsersController {
     return this.usersService.findAll(query);
   }
 
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @Get('admin-test')
-  adminTest() {
-    return {
-      message: 'You are an ADMIN',
-    };
-  }
-
   @Get(':id')
   findOne(@Param('id') id: number) {
     return this.usersService.findOne(id);
