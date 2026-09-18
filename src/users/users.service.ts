@@ -11,12 +11,46 @@ export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findAll(query: GetUsersDto) {
-    const { page, limit } = query;
+    const { page, limit, search, role, isActive } = query;
 
     const skip = (page - 1) * limit;
 
+    const where = {
+      ...(search && {
+        OR: [
+          {
+            firstName: {
+              contains: search,
+              mode: 'insensitive' as const,
+            },
+          },
+          {
+            lastName: {
+              contains: search,
+              mode: 'insensitive' as const,
+            },
+          },
+          {
+            email: {
+              contains: search,
+              mode: 'insensitive' as const,
+            },
+          },
+        ],
+      }),
+
+      ...(role && {
+        role,
+      }),
+
+      ...(isActive !== undefined && {
+        isActive,
+      }),
+    };
+
     const [users, total] = await Promise.all([
       this.prisma.user.findMany({
+        where,
         skip,
         take: limit,
         orderBy: {
@@ -27,7 +61,9 @@ export class UsersService {
         },
       }),
 
-      this.prisma.user.count(),
+      this.prisma.user.count({
+        where,
+      }),
     ]);
 
     return {
